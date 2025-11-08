@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>田字格批量生成器</title>
+    <style>
+        body { font-family: '微软雅黑', Arial, sans-serif; background: #f7f7f7; }
+        .container { max-width: 420px; margin: 60px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #ccc; padding: 32px 28px; }
+        h2 { text-align: center; margin-bottom: 24px; }
+        label { display: block; margin: 16px 0 6px 0; font-size: 16px; }
+        input[type="text"] { display: block; box-sizing: border-box; width: 100%; padding: 8px 10px; font-size: 18px; border: 1px solid #bbb; border-radius: 4px; margin: 0 auto; }
+        .modes { margin: 18px 0 22px 0; }
+        .modes label { display: block; font-size: 15px; margin-bottom: 6px; }
+        button { width: 100%; background: #2d8cf0; color: #fff; border: none; border-radius: 4px; padding: 12px 0; font-size: 18px; cursor: pointer; }
+        button:hover { background: #1976d2; }
+        .msg { color: #d32f2f; text-align: center; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>田字格批量生成器</h2>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="msg">{{ messages[0] }}</div>
+      {% endif %}
+    {% endwith %}
+    <form method="post">
+        <label for="chars">请输入汉字或名字（名字用空格分隔）：</label>
+        <input type="text" id="chars" name="chars" required>
+        <div class="modes">
+            <label><input type="radio" name="mode" value="1" checked> 一张字一页模式</label>
+            <label><input type="radio" name="mode" value="2"> 字帖模式</label>
+            <label><input type="radio" name="mode" value="3"> 一个名字一页模式</label>
+            <label><input type="radio" name="mode" value="4"> 字帖模式（竖版）</label>
+            <label><input type="radio" name="mode" value="5"> 5×6模式</label>
+            <label><input type="radio" name="mode" value="6"> 字帖模式（方格）</label>
+        </div>
+        <button type="submit" id="generateBtn">生成PDF</button>
+        <div style="text-align:center;margin-top:18px;">
+            <a href="#" id="helpLink" style="color:#1976d2;font-size:15px;text-decoration:underline;">使用说明</a>
+        </div>
+    </form>
+</div>
+<script>
+// 拦截表单提交，异步生成PDF
+const form = document.querySelector('form');
+const btn = document.getElementById('generateBtn');
+form.onsubmit = async function(e) {
+    e.preventDefault();
+    btn.disabled = true;
+    btn.textContent = '生成中...';
+    const formData = new FormData(form);
+    const res = await fetch('/', {
+        method: 'POST',
+        body: formData
+    });
+    if (res.ok) {
+        // 生成成功，弹窗选择
+        const blob = await res.blob();
+        const filename = decodeURIComponent(res.headers.get('Content-Disposition').split('filename=')[1].replace(/['"]/g, ''));
+        showChoiceDialog(blob, filename);
+    } else {
+        alert('生成失败，请重试！');
+    }
+    btn.disabled = false;
+    btn.textContent = '生成PDF';
+};
+
+function showChoiceDialog(blob, filename) {
+    // 创建弹窗
+    const mask = document.createElement('div');
+    mask.style = 'position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const dialog = document.createElement('div');
+    dialog.style = 'background:#fff;padding:32px 28px 28px 28px;border-radius:8px;box-shadow:0 2px 8px #888;text-align:center;min-width:260px;position:relative;';
+    // 右上角关闭符号
+    const closeBtn = document.createElement('span');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.title = '关闭';
+    closeBtn.style = 'position:absolute;top:10px;right:14px;font-size:22px;color:#888;cursor:pointer;font-weight:bold;';
+    closeBtn.onmouseover = function(){closeBtn.style.color='#d32f2f';};
+    closeBtn.onmouseout = function(){closeBtn.style.color='#888';};
+    closeBtn.onclick = function(){ mask.remove(); };
+    dialog.appendChild(closeBtn);
+    // 选项按钮纵向排列
+    const content = document.createElement('div');
+    content.innerHTML = `<div style='font-size:18px;margin-bottom:22px;margin-top:6px;'>PDF已生成，选择操作：</div>`;
+    const btnBox = document.createElement('div');
+    btnBox.style = 'display:flex;flex-direction:column;gap:18px;align-items:center;';
+    const dlBtn = document.createElement('button');
+    dlBtn.id = 'dlBtn';
+    dlBtn.textContent = '直接下载';
+    dlBtn.style = 'padding:8px 28px 8px 28px;font-size:16px;';
+    const shareBtn = document.createElement('button');
+    shareBtn.id = 'shareBtn';
+    shareBtn.textContent = '转发给好友';
+    shareBtn.style = 'padding:8px 28px 8px 28px;font-size:16px;';
+    btnBox.appendChild(dlBtn);
+    btnBox.appendChild(shareBtn);
+    content.appendChild(btnBox);
+    dialog.appendChild(content);
+    mask.appendChild(dialog);
+    document.body.appendChild(mask);
+    // 下载
+    dlBtn.onclick = function() {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(()=>{
+            URL.revokeObjectURL(url);
+            a.remove();
+            mask.remove();
+        }, 100);
+    };
+    // 转发
+    shareBtn.onclick = function() {
+        // 生成临时下载链接
+        const url = URL.createObjectURL(blob);
+        dialog.innerHTML = `<div style='font-size:17px;margin-bottom:12px;'>将下方链接复制发给好友：</div>
+            <input type='text' value='${url}' style='width:90%;padding:6px 8px;font-size:15px;' readonly onclick='this.select()'>
+            <div style='margin-top:18px;'><button id='closeBtn' style='padding:7px 22px;font-size:15px;'>关闭</button></div>`;
+        dialog.querySelector('#closeBtn').onclick = function() {
+            setTimeout(()=>{
+                URL.revokeObjectURL(url);
+                mask.remove();
+            }, 100);
+        };
+    };
+}
+
+// 使用说明弹窗
+const helpContent = `
+<h2>欢迎使用田字格生成器！</h2>
+<p>接下来，请您了解一些基本操作。</p>
+<h3>“一个字一页模式”</h3>
+<p>使用此模式，您可以生成如下图所示的田字格文件：</p>
+<img src="54a0a9d835e408fccb3e91d862aa16f2.png" alt="截图" style="zoom:30%;" />
+<p>只需选择“一个字一页模式”，在页面上方的输入框内输入您需要生成的文字，输入完毕后，点击页面下方的“生成PDF”按钮，即可生成。</p>
+<h3>“字帖模式”</h3>
+<p>使用此模式，您可以生成如下图所示的田字格文件：</p>
+<img src="d2319a550bb80518617218ac5075ce62.png" alt="截图" style="zoom:35%;" />
+<p>只需选择“字帖模式”，在页面上方的输入框内输入您需要生成的文字，输入完毕后，点击页面下方的“生成PDF”按钮，即可生成。</p>
+<h3>“字帖模式（竖版）”</h3>
+<p>使用此模式，您可以生成竖版字帖，范字出现在每列最上方的田字格内，从左往右排列，自动分页。</p>
+<p>只需选择“字帖模式（竖版）”，在页面上方的输入框内输入您需要生成的文字，输入完毕后，点击页面下方的“生成PDF”按钮，即可生成。</p>
+<h3>“5×6模式”</h3>
+<p>使用此模式，您可以生成5列6行的田字格，每页固定30个格子，文字从左往右、从上往下排列，自动分页。</p>
+<p>只需选择"5×6模式"，在页面上方的输入框内输入您需要生成的文字，输入完毕后，点击页面下方的"生成PDF"按钮，即可生成。</p>
+<h3>“一个名字一页模式”</h3>
+<p>使用此模式，您可以生成如下图所示的田字格文件：</p>
+<img src="0ceb31f5ec3f99632f7533791595de9c.png" alt="截图" style="zoom:35%;" />
+<p><b>注意，这里是重头戏！</b>您需要在每输入一个人名之后，在输入框中敲击一下“空格”键，这样，程序才可以正常识别出人名，并为其分页生成。</p>
+<h3>生成之后...</h3>
+<p>不论您使用什么模式，点击“生成PDF”按钮之后，稍等片刻，程序会弹窗提醒您生成完毕。</p>
+<img src="1b71d31f5ac4f2f108146933c1d29c43.png" alt="截图" style="zoom:45%;" />
+<p>此时，您可以选择“直接下载”或者“转发给好友”。我们更建议您选择“直接下载”，这样可以在微信中直接预览。</p>
+`;
+
+function showHelpDialog() {
+    const mask = document.createElement('div');
+    mask.style = 'position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const dialog = document.createElement('div');
+    dialog.style = 'background:#fff;padding:32px 28px 28px 28px;border-radius:8px;box-shadow:0 2px 8px #888;text-align:left;min-width:320px;max-width:520px;max-height:80vh;overflow:auto;position:relative;';
+    dialog.innerHTML = `<div style='margin-top:8px;'>${helpContent}</div>`;
+    // 右上角关闭符号（最后append，确保在最上层）
+    const closeBtn = document.createElement('span');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.title = '关闭';
+    closeBtn.style = 'position:absolute;top:10px;right:14px;font-size:22px;color:#888;cursor:pointer;font-weight:bold;z-index:10000;';
+    closeBtn.onmouseover = function(){closeBtn.style.color='#d32f2f';};
+    closeBtn.onmouseout = function(){closeBtn.style.color='#888';};
+    closeBtn.onclick = function(){ mask.remove(); };
+    dialog.appendChild(closeBtn);
+    mask.appendChild(dialog);
+    document.body.appendChild(mask);
+}
+document.getElementById('helpLink').onclick = function(e) {
+    e.preventDefault();
+    showHelpDialog();
+};
+</script>
+</body>
+</html> 
