@@ -31,7 +31,7 @@
 
 ## 下载
 
-前往[Release](https://github.com/virelyx258/Poster/releases)页面进行下载。
+直接 Clone 仓库即可食用。
 
 ## 使用教程
 
