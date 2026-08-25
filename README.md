@@ -16,7 +16,7 @@
 **田字格生成器**是一个基于 Python + Flask 的 Web 项目。其支持
 
 - 技术栈：`Python`
-- 支持的操作系统：Xiaomi Vela JS
+- 支持的操作系统：Windows 10+
 
 ## Todo List
 
